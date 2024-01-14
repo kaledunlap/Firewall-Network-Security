@@ -1,0 +1,131 @@
+Atlas (Router):
+enable
+config t
+hostname Atlas
+service password-encryption
+
+int g0/0/1
+ip address 197.10.10.2 255.255.255.0
+no shutdown
+
+int g0/0/0
+ip address 194.20.20.2 255.255.255.0
+no shutdown
+
+int vlan 1
+shutdown
+
+username Navigator privilege 15 secret 0 SpaceOut
+
+ip domain-name Mercury2301.local
+crypto key generate rsa
+ip ssh version 2
+
+line vty 0 4
+transport input ssh
+ip ssh time-out 60
+ip ssh authentication-retries 3
+
+
+banner motd "Warning: By using this “DUNLAP” System, you are acknowledging consent to monitoring. 
+All activities performed on this device are logged and monitored."
+
+
+ip nat pool mypatpool 197.10.10.1 197.10.10.20 netmask 255.255.255.0
+
+int g0/0/1
+ip nat outside
+
+int g0/0/0
+ip nat inside
+exit
+
+access-list 1 permit 197.10.10.0 0.0.0.255
+access-list 1 permit 194.20.20.0 0.0.0.255
+
+ip nat inside source list 1 pool mypatpool overload
+exit
+
+-------------------------------------------------------------------
+
+Titan (Firewall):
+enable
+config t
+hostname Titan
+domain-name Galaxy.local
+
+int g1/1
+ip address 194.20.20.1 255.255.255.0
+no shutdown
+no nameif inside
+nameif outside
+security-level 0
+
+int g1/2
+ip address 192.168.10.1 255.255.255.0
+no shutdown
+nameif inside
+security-level 100
+
+int g1/3
+ip address 192.168.20.1 255.255.255.0
+no shutdown
+nameif dmz1
+security-level 50
+exit
+
+route outside 0.0.0.0 0.0.0.0 194.20.20.2
+class-map inspection_default
+exit
+access-list ACL-ICMP-OUTSIDE extended permit icmp any any
+access-group ACL-ICMP-OUTSIDE in interface outside
+
+
+object network Going-Out
+subnet 192.168.10.0 255.255.255.0
+nat (inside, outside) dynamic interface
+exit
+
+
+object network DMZ-web
+host 192.168.20.3
+nat (dmz1,outside) static 194.20.20.2
+access-list DmzService permit ip any host 192.168.20.3
+
+
+-------------------------------------------------------------------
+
+Orion (Switch):
+enable
+config t
+hostname Orion
+ip dhcp snooping
+ip dhcp snooping vlan 10,20
+
+int fa 0/2
+switchport mode trunk
+switchport trunk native vlan 10
+switchport port-security mac-address sticky
+
+int fa 0/3
+switchport port-security violation shutdown
+
+int range fa0/5 - fa0/24
+shutdown
+exit
+
+int range g0/1 - g0/2
+no shutdown
+exit
+
+ip dhcp snooping vlan 20
+int fa0/10
+no shutdown
+switchport mode access
+switchport access vlan 20
+exit
+
+
+
+
+
